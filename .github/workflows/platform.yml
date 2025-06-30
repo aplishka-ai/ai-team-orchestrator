@@ -1,0 +1,53 @@
+name: AI Team Orchestrator Platform
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  platform-health:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Start platform
+      run: |
+        npm start &
+        sleep 10
+    
+    - name: Health check
+      run: |
+        curl -f http://localhost:8080/status || exit 1
+        echo "✅ Platform is healthy"
+    
+    - name: Test team creation
+      run: |
+        curl -X POST http://localhost:8080/teams \
+          -H "Content-Type: application/json" \
+          -d '{"name":"test-team","template":"minimal-app"}' || exit 1
+        echo "✅ Team creation works"
+
+  deploy-platform:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: platform-health
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to GitHub Pages (FREE hosting)
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./platform
